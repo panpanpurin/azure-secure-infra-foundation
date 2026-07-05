@@ -11,6 +11,11 @@ locals {
   vnet_b_name      = "${var.name_prefix}-vnet-b"
   nsg_storage_name = "${var.name_prefix}-nsg-storage"
 
+  # Storage (storage.tf) — container/blob names are fixed; account name is suffixed globally.
+  storage_container_name = "data"
+  storage_blob_name      = "dummy.txt"
+  storage_blob_content   = "azure-infra-identity-challenge"
+
   # Private DNS zone names (fixed Azure suffixes)
   dns_zone_blob  = "privatelink.blob.core.windows.net"
   dns_zone_vault = "privatelink.vaultcore.azure.net"

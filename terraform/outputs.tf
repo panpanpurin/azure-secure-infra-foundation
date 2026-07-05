@@ -108,3 +108,35 @@ output "dns_zone_vault_id" {
   description = "Private DNS zone ID for Key Vault private endpoints."
   value       = azurerm_private_dns_zone.vault.id
 }
+
+# --- Storage (storage.tf) ---
+
+output "storage_account_name" {
+  description = "Storage account name."
+  value       = azurerm_storage_account.app.name
+}
+
+output "storage_account_id" {
+  description = "Storage account resource ID."
+  value       = azurerm_storage_account.app.id
+}
+
+output "storage_blob_host" {
+  description = "Blob service FQDN (resolves to private IP via privatelink zone)."
+  value       = azurerm_storage_account.app.primary_blob_host
+}
+
+output "storage_container_name" {
+  description = "Container holding the dummy blob."
+  value       = azurerm_storage_container.data.name
+}
+
+output "storage_blob_name" {
+  description = "Dummy blob object name."
+  value       = azurerm_storage_blob.dummy.name
+}
+
+output "storage_private_endpoint_id" {
+  description = "Blob private endpoint resource ID."
+  value       = azurerm_private_endpoint.storage_blob.id
+}
