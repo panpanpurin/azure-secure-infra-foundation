@@ -1,0 +1,40 @@
+%% Azure Infrastructure & Identity Challenge — architecture diagram
+%% Render in GitHub, VS Code (Mermaid preview), or https://mermaid.live
+
+flowchart LR
+    subgraph RG["rg-interview-vm-andressa (japaneast)"]
+        direction LR
+
+        subgraph VNETA["VNet A (provided) 10.10.0.0/16"]
+            subgraph SNETBOOT["snet-bootstrap 10.10.0.0/24"]
+                VM["vm-vm-andressa<br/>vm-mi (runtime)<br/>id-manager (deploy)<br/>access-manager (RBAC)"]
+                PEV["PE: Key Vault"]
+            end
+        end
+
+        subgraph VNETB["VNet B (new) 10.20.0.0/16"]
+            subgraph SNETS["snet-storage 10.20.1.0/24 + NSG"]
+                PEB["PE: blob"]
+            end
+        end
+
+        VM <-->|"bidirectional peering"| SNETS
+        SA["Storage account<br/>Standard/LRS · public OFF"]
+        KV["Key Vault<br/>Standard · RBAC · public OFF"]
+
+        PEB --- SA
+        PEV --- KV
+
+        DNSB["privatelink.blob.core.windows.net<br/>(linked A + B)"]
+        DNSV["privatelink.vaultcore.azure.net<br/>(linked A)"]
+
+        DNSB -.-> VNETA
+        DNSB -.-> VNETB
+        DNSV -.-> VNETA
+
+        RGSCOPE["Resource group<br/>Reader scope"]
+
+        VM -->|"Reader"| RGSCOPE
+        VM -->|"Key Vault Secrets User"| KV
+        VM -->|"Storage Blob Data Reader"| SA
+    end
