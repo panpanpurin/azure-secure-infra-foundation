@@ -151,12 +151,44 @@ vault_link_vnet_ids="$(
 assert_eq "Vault DNS zone linked to VNet A only" "${VNET_A_ID}" "${vault_link_vnet_ids}"
 assert_not_contains "Vault DNS zone is not linked to VNet B" "${VNET_B_ID}" "${vault_link_vnet_ids}"
 
-log_section "Storage (not deployed yet)"
+log_section "Storage (public access off, private endpoint, private DNS resolution)"
 if skip_if_missing_output "storage_account_name" "Storage account output missing — implement storage.tf and apply"; then
   :
 else
-  # Reserved for phase 2: public access flags, PE private IP resolution, blob read.
-  log_skip "Storage checks not implemented in this phase"
+  STORAGE_ACCOUNT="$(tf_output storage_account_name)"
+  STORAGE_BLOB_HOST="$(tf_output storage_blob_host)"
+
+  public_network_access="$(
+    az storage account show \
+      --resource-group "${RG}" \
+      --name "${STORAGE_ACCOUNT}" \
+      --query publicNetworkAccess -o tsv
+  )"
+  allow_blob_public_access="$(
+    az storage account show \
+      --resource-group "${RG}" \
+      --name "${STORAGE_ACCOUNT}" \
+      --query allowBlobPublicAccess -o tsv
+  )"
+  assert_eq "Storage public network access is Disabled" "Disabled" "${public_network_access}"
+  assert_eq "Storage anonymous blob access is disabled" "false" "${allow_blob_public_access}"
+
+  resolved_ip="$(
+    getent hosts "${STORAGE_BLOB_HOST}" 2>/dev/null | awk '{print $1; exit}' || true
+  )"
+  if [[ -z "${resolved_ip}" ]]; then
+    resolved_ip="$(
+      nslookup "${STORAGE_BLOB_HOST}" 2>/dev/null | awk '/^Address: / { print $2; exit }' || true
+    )"
+  fi
+
+  if [[ -z "${resolved_ip}" ]]; then
+    log_fail "Storage blob FQDN resolves to a private IP (no answer for ${STORAGE_BLOB_HOST})"
+  elif [[ "${resolved_ip}" =~ ^10\. ]]; then
+    log_pass "Storage blob FQDN resolves to private IP ${resolved_ip}"
+  else
+    log_fail "Storage blob FQDN resolves to non-private IP (got ${resolved_ip})"
+  fi
 fi
 
 log_section "Key Vault (not deployed yet)"
