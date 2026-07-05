@@ -71,11 +71,10 @@ resource "azurerm_storage_container" "data" {
 
 # Provider storage_use_azuread = false (default): uploads via account key over the PE.
 resource "azurerm_storage_blob" "dummy" {
-  name                   = local.storage_blob_name
-  storage_account_name   = azurerm_storage_account.app.name
-  storage_container_name = azurerm_storage_container.data.name
-  type                   = "Block"
-  source_content         = local.storage_blob_content
+  name                 = local.storage_blob_name
+  storage_container_id = azurerm_storage_container.data.id
+  type                 = "Block"
+  source_content       = local.storage_blob_content
 
   depends_on = [
     azurerm_private_endpoint.storage_blob,
