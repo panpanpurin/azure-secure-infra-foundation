@@ -1,0 +1,36 @@
+# .tfvars EXAMPLE with placeholders
+
+# --- Subscription / tenant ---
+subscription_id = "00000000-0000-0000-0000-000000000000"
+tenant_id       = "00000000-0000-0000-0000-000000000000"
+
+# --- Managed identity client IDs (default + access-manager providers) ---
+id_manager_client_id     = "00000000-0000-0000-0000-000000000000"
+access_manager_client_id = "00000000-0000-0000-0000-000000000000"
+
+# --- vm-mi principal ID (system-assigned MI on the bootstrap VM) ---
+vm_mi_principal_id = "00000000-0000-0000-0000-000000000000"
+
+# --- Provided infrastructure (data sources — not managed) ---
+resource_group_name   = "rg-interview-vm-<candidate>"
+vnet_a_name           = "vnet-a-vm-<candidate>"
+bootstrap_subnet_name = "snet-bootstrap"
+bootstrap_nsg_name    = "nsg-vm-<candidate>"
+vm_name               = "vm-vm-<candidate>"
+id_manager_name       = "id-manager-vm-<candidate>"
+access_manager_name   = "access-manager-vm-<candidate>"
+
+# --- Candidate-managed network ---
+vnet_b_address_space            = ["10.20.0.0/16"]
+storage_subnet_name             = "snet-storage"
+storage_subnet_address_prefixes = ["10.20.1.0/24"]
+bootstrap_subnet_cidr           = "10.10.0.0/24"
+
+# --- Naming / provisioning options ---
+name_prefix         = "aiic"
+storage_use_azuread = false
+
+# --- Mandatory tags (Azure Policy) ---
+tag_owner       = "<your-name>"
+tag_environment = "interview"
+tag_project     = "azure-infra-identity-challenge"
