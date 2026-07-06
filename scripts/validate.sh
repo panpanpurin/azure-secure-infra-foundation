@@ -191,11 +191,65 @@ else
   fi
 fi
 
-log_section "Key Vault (not deployed yet)"
+log_section "Key Vault (public access off, private endpoint, private DNS resolution)"
 if skip_if_missing_output "key_vault_name" "Key Vault output missing — implement keyvault.tf and apply"; then
   :
 else
-  log_skip "Key Vault checks not implemented in this phase"
+  KEY_VAULT_NAME="$(tf_output key_vault_name)"
+  KEY_VAULT_ID="$(tf_output key_vault_id)"
+  KEY_VAULT_URI="$(tf_output key_vault_uri)"
+  KEY_VAULT_PE_ID="$(tf_output key_vault_private_endpoint_id)"
+  KEY_VAULT_HOST="${KEY_VAULT_URI#https://}"
+  KEY_VAULT_HOST="${KEY_VAULT_HOST%/}"
+
+  kv_show_json="$(az keyvault show --name "${KEY_VAULT_NAME}" -o json)"
+  kv_public_network_access="$(jq -r '.properties.publicNetworkAccess' <<<"${kv_show_json}")"
+  kv_rbac_authorization="$(jq -r '.properties.enableRbacAuthorization' <<<"${kv_show_json}")"
+  kv_sku="$(jq -r '.properties.sku.name' <<<"${kv_show_json}")"
+  kv_purge_protection="$(jq -r '.properties.enablePurgeProtection // false' <<<"${kv_show_json}")"
+  kv_tag_keys="$(jq -r '.tags // {} | keys[]' <<<"${kv_show_json}")"
+
+  assert_eq "Key Vault public network access is Disabled" "Disabled" "${kv_public_network_access}"
+  assert_eq "Key Vault RBAC authorization is enabled" "true" "${kv_rbac_authorization}"
+  assert_eq "Key Vault SKU is standard" "standard" "${kv_sku}"
+  assert_eq "Key Vault purge protection is disabled" "false" "${kv_purge_protection}"
+  assert_contains "Key Vault has Owner tag" "Owner" "${kv_tag_keys}"
+  assert_contains "Key Vault has Environment tag" "Environment" "${kv_tag_keys}"
+  assert_contains "Key Vault has Project tag" "Project" "${kv_tag_keys}"
+
+  kv_resolved_ip="$(
+    getent hosts "${KEY_VAULT_HOST}" 2>/dev/null | awk '{print $1; exit}' || true
+  )"
+  if [[ -z "${kv_resolved_ip}" ]]; then
+    kv_resolved_ip="$(
+      nslookup "${KEY_VAULT_HOST}" 2>/dev/null | awk '/^Address: / { print $2; exit }' || true
+    )"
+  fi
+
+  if [[ -z "${kv_resolved_ip}" ]]; then
+    log_fail "Key Vault FQDN resolves to a private IP (no answer for ${KEY_VAULT_HOST})"
+  elif [[ "${kv_resolved_ip}" =~ ^10\. ]]; then
+    log_pass "Key Vault FQDN resolves to private IP ${kv_resolved_ip}"
+  else
+    log_fail "Key Vault FQDN resolves to non-private IP (got ${kv_resolved_ip})"
+  fi
+
+  kv_pe_status="$(
+    az network private-endpoint show \
+      --ids "${KEY_VAULT_PE_ID}" \
+      --query "privateLinkServiceConnections[0].privateLinkServiceConnectionState.status" -o tsv
+  )"
+  assert_eq "Key Vault private endpoint connection is Approved" "Approved" "${kv_pe_status}"
+
+  id_manager_pid="$(tf_output id_manager_principal_id)"
+  idmgr_kv_roles="$(
+    az role assignment list \
+      --scope "${KEY_VAULT_ID}" \
+      --query "[?principalId=='${id_manager_pid}'].roleDefinitionName" -o tsv
+  )"
+  assert_contains "id-manager holds Key Vault Secrets Officer (seed grant)" "Key Vault Secrets Officer" "${idmgr_kv_roles}"
+
+  log_skip "Dummy secret data-plane read deferred to RBAC phase (needs vm-mi's Key Vault Secrets User grant)"
 fi
 
 log_section "RBAC and data-plane (not deployed yet)"
