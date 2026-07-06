@@ -78,8 +78,9 @@ make apply
 | :--- | :--- | :--- |
 | Default `azurerm` | `id-manager` | All infrastructure except RBAC assignments |
 | `azurerm.rbac` (alias) | `access-manager` | `azurerm_role_assignment` resources only |
+| `azapi` | `id-manager` | Key Vault dummy secret (ARM control-plane write) |
 
-Both providers use `use_msi = true` with distinct `client_id` values. Role definitions are read via the default provider; assignments are written via `azurerm.rbac`.
+All three use `use_msi = true`; `azurerm.rbac` uses `access-manager`'s `client_id`, the other two use `id-manager`'s. Role definitions are read via the default provider; assignments are written via `azurerm.rbac`. The Key Vault secret is seeded via `azapi` instead of a role assignment — see [Design decisions](#design-decisions) below for why.
 
 ## Validate
 
@@ -144,12 +145,14 @@ The only project-owned NSG applies to `snet-storage`. Inbound HTTPS (443) is all
 
 | Resource | `id-manager` seed (provisioning) | `vm-mi` runtime |
 | :--- | :--- | :--- |
-| Key Vault secret | `Key Vault Secrets Officer` (via `access-manager`) | `Key Vault Secrets User` |
+| Key Vault secret | None — `azapi_resource` ARM control-plane write | `Key Vault Secrets User` |
 | Storage blob | Account key over private endpoint (default) | `Storage Blob Data Reader` (Entra ID) |
 
-RBAC-authorization Key Vault has no key-based shortcut for secret creation. For storage, the default path uses `shared_access_key_enabled = true` to upload the dummy blob over the private endpoint without a `Storage Blob Data Contributor` grant — reducing RBAC propagation risk during `apply`. Public network access remains disabled; shared keys are not public access. `vm-mi` always reads blobs via Entra ID.
+**Key Vault secret seeding.** The original plan was a `Key Vault Secrets Officer` grant for `id-manager` via `access-manager`, since an RBAC-authorization vault has no key-based shortcut for secret creation. Testing against the real environment showed this is impossible: `access-manager`'s own RBAC-assignment permission carries an ABAC condition restricting it to granting only `Reader`, `Key Vault Secrets User`, and `Storage Blob Data Reader`, the three `vm-mi` runtime roles, and nothing else, to any principal. Instead, the dummy secret is created with `azapi_resource`, which writes `Microsoft.KeyVault/vaults/secrets` directly as an ARM control-plane action (`Microsoft.KeyVault/vaults/secrets/write`), a normal `Contributor`-level action, unrelated to the vault's data-plane RBAC or network restrictions. `id-manager` needs no additional grant at all, and there's no RBAC propagation to wait for. This was verified working end-to-end, including with the vault's public network access disabled.
 
-An optional hardening path disables shared keys and seeds the blob via Entra ID (`Storage Blob Data Contributor` + longer propagation wait).
+For storage, the default path uses `shared_access_key_enabled = true` to upload the dummy blob over the private endpoint without a `Storage Blob Data Contributor` grant, reducing RBAC propagation risk during `apply`. Public network access remains disabled; shared keys are not public access. `vm-mi` always reads blobs via Entra ID.
+
+An optional hardening path disables shared keys and seeds the blob via Entra ID (`Storage Blob Data Contributor` + longer propagation wait). This applies to the storage seed only, the Key Vault seed has no RBAC propagation step to harden.
 
 ### Multi-environment scaling
 
@@ -164,12 +167,14 @@ This repository uses a single root module with local state for challenge scope. 
 
 | Resource | `vm-mi` | `id-manager` | `access-manager` |
 | :--- | :--- | :--- | :--- |
-| Resource group | Reader | Contributor *(pre-granted)* | RBAC-assign role *(pre-granted)* |
-| Key Vault | Key Vault Secrets User | Secrets Officer *(seed only)* | Creates assignments |
+| Resource group | Reader | Contributor *(pre-granted)* | Role Based Access Control Administrator *(pre-granted)* |
+| Key Vault | Key Vault Secrets User | None — seeded via `azapi_resource` | Creates assignments |
 | Storage container | Storage Blob Data Reader | Account-key seed *(default)* | Creates assignments |
 | Deploy infrastructure | — | Yes | No |
 | Assign RBAC | — | No | Yes |
 | Runtime access | Yes | No | No |
+
+`access-manager`'s RBAC-assignment permission carries an ABAC condition restricting it to granting only the three `vm-mi` roles above, confirmed via `az role assignment list`, see [Provisioning seed vs runtime access](#provisioning-seed-vs-runtime-access).
 
 ### Why `vm-mi` needs three roles
 

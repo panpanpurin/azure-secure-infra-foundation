@@ -14,11 +14,20 @@
 
 | Resource / scope | `vm-mi` (runtime) | `id-manager` (provision) | `access-manager` |
 | :--- | :--- | :--- | :--- |
-| Resource group | **Reader** | Contributor *(pre-granted)* | User Access Administrator or RBAC Administrator *(pre-granted)* |
-| Key Vault | **Key Vault Secrets User** | Key Vault Secrets Officer *(seed only)* | Creates role assignments |
+| Resource group | **Reader** | Contributor *(pre-granted)* | Role Based Access Control Administrator *(pre-granted; confirmed via `az role assignment list`)* |
+| Key Vault | **Key Vault Secrets User** | None — secret seeded via `azapi_resource` (ARM control-plane) | Creates role assignments |
 | Storage container | **Storage Blob Data Reader** | Account-key blob seed *(default)* or Blob Data Contributor *(AAD-only path)* | Creates role assignments |
 
 All `azurerm_role_assignment` resources use `provider = azurerm.rbac` (`access-manager`).
+
+`access-manager`'s `Role Based Access Control Administrator` grant carries an ABAC condition, confirmed by reading the assignment directly:
+
+```bash
+az role assignment list --assignee <access-manager-principal-id> -o json \
+  --query "[].{role:roleDefinitionName, condition:condition}"
+```
+
+The condition restricts `access-manager` to creating (or deleting) role assignments only for `Reader`, `Key Vault Secrets User`, or `Storage Blob Data Reader`, and only when the target principal type is `ServicePrincipal`, exactly the three `vm-mi` rows above, nothing more. This is why the Key Vault seed could not use a role assignment: no role capable of writing a secret is assignable through `access-manager` in this environment, for any principal, including `id-manager`.
 
 ## Runtime identity (`vm-mi`) — exactly three assignments
 
@@ -60,10 +69,11 @@ Created via `access-manager` for initial dummy content only — not runtime gran
 
 | Role | GUID | Scope | When used |
 | :--- | :--- | :--- | :--- |
-| Key Vault Secrets Officer | `b86a8fe4-44ce-4948-aab7-e0022e6c4653` | Key Vault | Always (RBAC-auth vault has no key shortcut) |
 | Storage Blob Data Contributor | `ba92f5b4-2d11-453d-a403-e96b0029c9fe` | Container | AAD-only storage seed path only |
 
 On the **default path**, blob upload uses the storage account key over the private endpoint; the Blob Data Contributor assignment is omitted.
+
+The Key Vault seed has no equivalent row here: `id-manager` receives no role assignment at all for the vault. The dummy secret is created via `azapi_resource` (ARM control-plane write to `Microsoft.KeyVault/vaults/secrets`), authorized by `id-manager`'s existing `Contributor` grant, please see [design-decisions.md](design-decisions.md#provisioning-seed-vs-runtime-roles) for why a role assignment isn't an option here.
 
 ## Role definition resolution pattern
 

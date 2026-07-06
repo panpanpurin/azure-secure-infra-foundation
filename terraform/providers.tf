@@ -27,3 +27,15 @@ provider "azurerm" {
   tenant_id                       = var.tenant_id
   resource_provider_registrations = "none"
 }
+
+# azapi, authenticated as id-manager (same identity as the default azurerm
+# provider). Used only to seed the Key Vault dummy secret via the ARM
+# control-plane action Microsoft.KeyVault/vaults/secrets/write, which
+# Contributor already grants
+
+provider "azapi" {
+  use_msi         = true
+  client_id       = var.id_manager_client_id
+  subscription_id = var.subscription_id
+  tenant_id       = var.tenant_id
+}
