@@ -55,22 +55,22 @@ Both user-assigned identities are pre-provisioned by the challenge. Their baseli
 
 Dummy secret and blob content must be created after private endpoints and DNS are live.
 
-**Default path (recommended for apply reliability)**
+**Key Vault secret: ARM control-plane write, not a role assignment**
+
+The original plan was for `access-manager` to grant `id-manager` a `Key Vault Secrets Officer` role, since an RBAC-authorization vault has no key-based shortcut for secret creation. Testing against the real environment showed this is not possible: `access-manager`'s own RBAC-assignment permission carries an ABAC condition (visible via `az role assignment list --assignee <access-manager-principal-id>`) that restricts it to granting only three roles (`Reader`, `Key Vault Secrets User`, and `Storage Blob Data Reader`) and only to a `ServicePrincipal`. These are exactly the three `vm-mi` runtime roles; no role that can write a secret is assignable through `access-manager` in this environment, for any principal.
+
+The dummy secret is instead created with `azapi_resource`, authenticated as `id-manager`, targeting `Microsoft.KeyVault/vaults/secrets` directly. Writing a Key Vault secret through this ARM control-plane action (`Microsoft.KeyVault/vaults/secrets/write`) is authorized by `Contributor`, the role `id-manager` already holds and is independent of the vault's data-plane RBAC or network restrictions entirely. No additional grant, and no propagation wait, is needed for `id-manager`. This was confirmed working against the live environment, including with the vault's `public_network_access_enabled = false`.
 
 | Artifact | Method | `id-manager` grant |
 | :--- | :--- | :--- |
-| Key Vault secret | Entra ID over KV private endpoint | `Key Vault Secrets Officer` (no key-based alternative on RBAC-auth vault) |
+| Key Vault secret | `azapi_resource` (ARM control-plane write) | None — covered by existing `Contributor` |
 | Storage blob | Account key over blob private endpoint | None — `shared_access_key_enabled = true` |
-
-RBAC propagation is eventually consistent. The default path avoids a second propagation gate (`Storage Blob Data Contributor`) for blob upload. `shared_access_key_enabled = true` does not enable public network access; public access remains disabled.
-
-A `time_sleep` (or retry loop) after the Key Vault seed assignment reduces flaky secret creation.
 
 **Hardening path (optional)**
 
-Disable shared keys, seed the blob via Entra ID, and add `Storage Blob Data Contributor` for `id-manager`. This adds a second propagation dependency and longer apply times.
+Disable shared keys, seed the blob via Entra ID, and add `Storage Blob Data Contributor` for `id-manager`. This adds an RBAC propagation dependency and longer apply times, and only applies to the storage seed, the Key Vault seed path has no equivalent hardening variant, since it never depends on RBAC propagation in the first place.
 
-`vm-mi` always reads the blob with `Storage Blob Data Reader` (Entra ID) regardless of how the blob was uploaded.
+`vm-mi` always reads the blob with `Storage Blob Data Reader` (Entra ID) regardless of how the blob was uploaded, and the secret with `Key Vault Secrets User` regardless of how it was seeded.
 
 ## SKUs and region
 

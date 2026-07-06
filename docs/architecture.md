@@ -58,10 +58,11 @@ No public endpoints are used for storage or Key Vault data-plane access.
 
 | Provider | MSI `client_id` | Creates |
 | :--- | :--- | :--- |
-| Default `azurerm` | `id-manager` | VNets, peering, DNS, storage, Key Vault, private endpoints, secrets/blobs (seed) |
+| Default `azurerm` | `id-manager` | VNets, peering, DNS, storage, Key Vault, private endpoints, storage blob (seed) |
 | `azurerm.rbac` | `access-manager` | All `azurerm_role_assignment` resources |
+| `azapi` | `id-manager` | Key Vault dummy secret (ARM control-plane write; see [design-decisions.md](design-decisions.md#provisioning-seed-vs-runtime-roles)) |
 
-Role definitions are resolved with the default provider; assignments are written through `azurerm.rbac`.
+Role definitions are resolved with the default provider; assignments are written through `azurerm.rbac`. The Key Vault secret is written through `azapi` rather than a role assignment — `access-manager`'s RBAC-assignment permission is restricted (by an ABAC condition) to granting only the three `vm-mi` runtime roles, so no role capable of writing a secret can be granted to `id-manager`.
 
 ## Validation
 
