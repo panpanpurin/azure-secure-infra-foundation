@@ -168,7 +168,7 @@ This repository uses a single root module with local state for challenge scope. 
 | Resource | `vm-mi` | `id-manager` | `access-manager` |
 | :--- | :--- | :--- | :--- |
 | Resource group | Reader | Contributor *(pre-granted)* | Role Based Access Control Administrator *(pre-granted)* |
-| Key Vault | Key Vault Secrets User | None — seeded via `azapi_resource` | Creates assignments |
+| Key Vault secret | Key Vault Secrets User *(single secret)* | None — seeded via `azapi_resource` | Creates assignments |
 | Storage container | Storage Blob Data Reader | Account-key seed *(default)* | Creates assignments |
 | Deploy infrastructure | — | Yes | No |
 | Assign RBAC | — | No | Yes |
@@ -181,12 +181,12 @@ This repository uses a single root module with local state for challenge scope. 
 | Role | Scope | Reason |
 | :--- | :--- | :--- |
 | Reader | Resource group | Required by the challenge; control-plane metadata only |
-| Key Vault Secrets User | Key Vault | Data-plane read of secret **values** (`Key Vault Reader` is metadata-only) |
+| Key Vault Secrets User | Single secret (`dummy-secret`) | Data-plane read of the secret **value** (`Key Vault Reader` is metadata-only) |
 | Storage Blob Data Reader | Container | Data-plane read of blob **content** (control-plane `Reader` is insufficient) |
 
 **Forbidden on `vm-mi`:** Contributor, Owner, User Access Administrator, Role Based Access Control Administrator, or any `*Contributor`/`*Owner` data role.
 
-Tighter scopes (single secret, single container) are supported as further hardening.
+Both data-plane roles are scoped to the tightest resource available (single secret, single container) rather than the parent vault or account.
 
 ## Cost perspective (japaneast, approximate USD/month)
 

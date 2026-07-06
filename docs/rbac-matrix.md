@@ -15,7 +15,7 @@
 | Resource / scope | `vm-mi` (runtime) | `id-manager` (provision) | `access-manager` |
 | :--- | :--- | :--- | :--- |
 | Resource group | **Reader** | Contributor *(pre-granted)* | Role Based Access Control Administrator *(pre-granted; confirmed via `az role assignment list`)* |
-| Key Vault | **Key Vault Secrets User** | None — secret seeded via `azapi_resource` (ARM control-plane) | Creates role assignments |
+| Key Vault secret | **Key Vault Secrets User** *(scoped to the single dummy secret)* | None — secret seeded via `azapi_resource` (ARM control-plane) | Creates role assignments |
 | Storage container | **Storage Blob Data Reader** | Account-key blob seed *(default)* or Blob Data Contributor *(AAD-only path)* | Creates role assignments |
 
 All `azurerm_role_assignment` resources use `provider = azurerm.rbac` (`access-manager`).
@@ -34,7 +34,7 @@ The condition restricts `access-manager` to creating (or deleting) role assignme
 | # | Role | GUID | Scope | Purpose |
 | :-- | :--- | :--- | :--- | :--- |
 | 1 | Reader | `acdd72a7-3385-48ef-bd42-f606fba81ae7` | Resource group | Challenge requirement; control-plane metadata |
-| 2 | Key Vault Secrets User | `4633458b-17de-408a-b874-0445c86b69e6` | Key Vault | Data-plane read of secret **values** |
+| 2 | Key Vault Secrets User | `4633458b-17de-408a-b874-0445c86b69e6` | Single secret (`dummy-secret`) | Data-plane read of the secret **value** |
 | 3 | Storage Blob Data Reader | `2a2b9908-6ea1-4ae2-8e65-a410df84e7d1` | Container | Data-plane read/list of blob content |
 
 ### Why three roles
@@ -56,12 +56,14 @@ Never assign:
 - Role Based Access Control Administrator
 - Any `*Contributor` or `*Owner` data-plane role
 
-### Optional tightening
+### Scope choices
 
-Scopes can be narrowed further:
+Both data-plane roles are scoped to the tightest resource available, not the parent container:
 
-- Key Vault Secrets User on a **single secret** instead of the whole vault
-- Storage Blob Data Reader on a **single container** (default) vs whole account
+- Key Vault Secrets User is scoped to the **single secret** (`dummy-secret`), not the whole vault.
+- Storage Blob Data Reader is scoped to the **container**, not the whole storage account.
+
+A further, unused option is scoping Storage Blob Data Reader to the individual blob rather than the container — omitted here since the container holds only the one dummy blob and Azure RBAC's blob-level scoping is less commonly supported by tooling than container-level.
 
 ## Provisioning seed roles (`id-manager`)
 
