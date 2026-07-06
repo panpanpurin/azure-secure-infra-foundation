@@ -241,15 +241,23 @@ else
   )"
   assert_eq "Key Vault private endpoint connection is Approved" "Approved" "${kv_pe_status}"
 
-  id_manager_pid="$(tf_output id_manager_principal_id)"
-  idmgr_kv_roles="$(
-    az role assignment list \
-      --scope "${KEY_VAULT_ID}" \
-      --query "[?principalId=='${id_manager_pid}'].roleDefinitionName" -o tsv
+  # Secret existence is checked via an ARM control-plane read (az resource show), not the Key Vault data plane,
+  # the secret was seeded the same way (azapi_resource), not via a role assignment.
+  kv_secret_name="$(tf_output key_vault_secret_name)"
+  kv_secret_json="$(
+    az resource show \
+      --ids "${KEY_VAULT_ID}/secrets/${kv_secret_name}" \
+      --api-version 2023-07-01 \
+      -o json 2>/dev/null || true
   )"
-  assert_contains "id-manager holds Key Vault Secrets Officer (seed grant)" "Key Vault Secrets Officer" "${idmgr_kv_roles}"
+  if [[ -z "${kv_secret_json}" ]]; then
+    log_fail "Dummy secret exists as an ARM resource (seeded via azapi_resource)"
+  else
+    kv_secret_enabled="$(jq -r '.properties.attributes.enabled' <<<"${kv_secret_json}")"
+    assert_eq "Dummy secret exists and is enabled (ARM control-plane read)" "true" "${kv_secret_enabled}"
+  fi
 
-  log_skip "Dummy secret data-plane read deferred to RBAC phase (needs vm-mi's Key Vault Secrets User grant)"
+  log_skip "Dummy secret data-plane value read deferred to RBAC phase (needs vm-mi's Key Vault Secrets User grant)"
 fi
 
 log_section "RBAC and data-plane (not deployed yet)"

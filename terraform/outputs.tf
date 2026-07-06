@@ -165,5 +165,5 @@ output "key_vault_private_endpoint_id" {
 
 output "key_vault_secret_name" {
   description = "Dummy secret name."
-  value       = azurerm_key_vault_secret.dummy.name
+  value       = local.dummy_secret_name
 }
