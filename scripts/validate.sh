@@ -268,10 +268,16 @@ else
   KV_SECRET_ID="$(tf_output key_vault_secret_id)"
   STORAGE_CONTAINER_ID="$(tf_output storage_container_id)"
 
-  # --all is necessary here,  without it, az role assignment list misses assignments
+  # --all is necessary here: without it, az role assignment list misses assignments
   # scoped below the resource group (the KV secret and storage container
   # scopes here), returning only the RG-level Reader assignment.
-  vmmi_assignments_json="$(az role assignment list --assignee "${VM_MI_PID}" --all -o json)"
+  # --assignee-object-id (instead of --assignee) skips az's Graph API lookup
+  # entirely: VM_MI_PID is already an object ID, so there's nothing to resolve,
+  # and Graph resolution is unavailable for both provisioning identities.
+  # AZURE_DEFAULTS_GROUP is cleared for this call: az CLI rejects --all when
+  # combined with a --resource-group/--scope, including one injected implicitly
+  # from an `az configure --defaults group=...` setting.
+  vmmi_assignments_json="$(AZURE_DEFAULTS_GROUP= az role assignment list --assignee-object-id "${VM_MI_PID}" --all -o json)"
 
   vmmi_role_scope_pairs="$(
     jq -r '.[] | "\(.roleDefinitionName)|\(.scope)"' <<<"${vmmi_assignments_json}" | sort
