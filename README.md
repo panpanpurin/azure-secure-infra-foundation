@@ -150,9 +150,9 @@ The only project-owned NSG applies to `snet-storage`. Inbound HTTPS (443) is all
 
 **Key Vault secret seeding.** The original plan was a `Key Vault Secrets Officer` grant for `id-manager` via `access-manager`, since an RBAC-authorization vault has no key-based shortcut for secret creation. Testing against the real environment showed this is impossible: `access-manager`'s own RBAC-assignment permission carries an ABAC condition restricting it to granting only `Reader`, `Key Vault Secrets User`, and `Storage Blob Data Reader`, the three `vm-mi` runtime roles, and nothing else, to any principal. Instead, the dummy secret is created with `azapi_resource`, which writes `Microsoft.KeyVault/vaults/secrets` directly as an ARM control-plane action (`Microsoft.KeyVault/vaults/secrets/write`), a normal `Contributor`-level action, unrelated to the vault's data-plane RBAC or network restrictions. `id-manager` needs no additional grant at all, and there's no RBAC propagation to wait for. This was verified working end-to-end, including with the vault's public network access disabled.
 
-For storage, the default path uses `shared_access_key_enabled = true` to upload the dummy blob over the private endpoint without a `Storage Blob Data Contributor` grant, reducing RBAC propagation risk during `apply`. Public network access remains disabled; shared keys are not public access. `vm-mi` always reads blobs via Entra ID.
+For storage, `shared_access_key_enabled = true` uploads the dummy blob over the private endpoint using the account key. Public network access remains disabled; shared keys are not public access. `vm-mi` always reads blobs via Entra ID.
 
-An optional hardening path disables shared keys and seeds the blob via Entra ID (`Storage Blob Data Contributor` + longer propagation wait). This applies to the storage seed only, the Key Vault seed has no RBAC propagation step to harden.
+An Entra-ID-only variant (disable shared keys, seed via `Storage Blob Data Contributor` for `id-manager`) is not offered, it hits the same `access-manager` ABAC restriction described above. `Storage Blob Data Contributor` is outside the three-role allow-list, and unlike the Key Vault secret, blob content has no ARM control-plane write to fall back on (there is no `azapi_resource` equivalent) for blob bytes. The account-key seed is therefore the only working path in this environment, not merely the lower-risk default.
 
 ### Multi-environment scaling
 
@@ -162,6 +162,23 @@ This repository uses a single root module with local state for challenge scope. 
 - Remote `azurerm` backend with state locking and versioning
 - Shared modules (`network`, `identity`, `data-plane`)
 - Separate subscriptions and deployment identities per environment
+
+### Tagging
+
+Every resource type that supports tags in Azure gets `Owner`, `Environment`, `Project` from a single `local.tags` map: the storage account, both private endpoints, the Key Vault, the Key Vault secret (via `azapi_resource`), both private DNS zones and their virtual network links, VNet B, and the storage NSG.
+
+A few resource types in this deployment have no `tags` property in Azure at all, so they're deliberately left untagged (this is expected):
+
+| Resource type | Examples here |
+| :--- | :--- |
+| Role assignments | `azurerm_role_assignment.vmmi_*` |
+| Subnets | `azurerm_subnet.storage` |
+| Subnet/NSG associations | `azurerm_subnet_network_security_group_association.storage` |
+| NSG rules | `azurerm_network_security_rule.*` |
+| VNet peerings | `azurerm_virtual_network_peering.a_to_b`, `.b_to_a` |
+| Storage containers and blobs | `azurerm_storage_container.data`, `azurerm_storage_blob.dummy` |
+
+Azure Policy's tag-enforcement targets only taggable resource types, so this deployment passes without adding tags where Azure doesn't support them.
 
 ## RBAC matrix
 
