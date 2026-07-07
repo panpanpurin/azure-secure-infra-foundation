@@ -105,12 +105,6 @@ variable "name_prefix" {
   default     = "aiic"
 }
 
-variable "storage_use_azuread" {
-  type        = bool
-  description = "When false (default), seed the dummy blob via account key over the private endpoint. Set true for Entra ID-only hardening."
-  default     = false
-}
-
 # --- Mandatory tags (Azure Policy) ---
 
 variable "tag_owner" {

@@ -76,6 +76,7 @@ resource "azapi_resource" "kv_secret_seed" {
   type      = "Microsoft.KeyVault/vaults/secrets@2023-07-01"
   name      = local.dummy_secret_name
   parent_id = azurerm_key_vault.app.id
+  location  = local.location
   tags      = local.tags
 
   body = {

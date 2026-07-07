@@ -3,7 +3,15 @@
 # STRATEGY
 #   - Standard / LRS / StorageV2; public network access disabled; anonymous blob off.
 #   - shared_access_key_enabled = true: seed dummy blob via account key over the PE
-#     (no Storage Blob Data Contributor grant for id-manager).
+#     (no RBAC grant for id-manager).
+#   - An Entra-ID-only variant (disable shared keys, seed via Storage Blob Data
+#     Contributor) is NOT offered here: access-manager's RBAC-assignment
+#     permission carries an ABAC condition restricting it to exactly Reader,
+#     Key Vault Secrets User, and Storage Blob Data Reader (please see rbac.tf), the
+#     same restriction that forced the Key Vault secret onto azapi_resource.
+#     Storage Blob Data Contributor is outside that allow-list and unlike the
+#     Key Vault secret, blob content has no ARM control-plane write to fall
+#     back on, so the account-key seed is the only working path here.
 #   - Apply order: account → PE + DNS zone group → container → blob (key auth).
 #   - Blob PE lives in snet-storage; VM in VNet A resolves FQDN over peering via
 #     privatelink.blob.core.windows.net (linked in dns.tf).
@@ -69,7 +77,7 @@ resource "azurerm_storage_container" "data" {
   depends_on = [azurerm_private_endpoint.storage_blob]
 }
 
-# Provider storage_use_azuread = false (default): uploads via account key over the PE.
+# Uploads via account key over the PE (shared_access_key_enabled = true above).
 resource "azurerm_storage_blob" "dummy" {
   name                 = local.storage_blob_name
   storage_container_id = azurerm_storage_container.data.id
