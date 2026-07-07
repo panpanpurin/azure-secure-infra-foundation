@@ -10,6 +10,11 @@ output "resource_group_name" {
   value       = data.azurerm_resource_group.this.name
 }
 
+output "resource_group_id" {
+  description = "Provided resource group resource ID (vm-mi Reader scope)."
+  value       = data.azurerm_resource_group.this.id
+}
+
 output "vnet_a_name" {
   description = "Provided VNet A name."
   value       = data.azurerm_virtual_network.vnet_a.name
@@ -131,6 +136,11 @@ output "storage_container_name" {
   value       = azurerm_storage_container.data.name
 }
 
+output "storage_container_id" {
+  description = "Storage container resource ID (vm-mi Storage Blob Data Reader scope)."
+  value       = azurerm_storage_container.data.id
+}
+
 output "storage_blob_name" {
   description = "Dummy blob object name."
   value       = azurerm_storage_blob.dummy.name
@@ -166,4 +176,26 @@ output "key_vault_private_endpoint_id" {
 output "key_vault_secret_name" {
   description = "Dummy secret name."
   value       = local.dummy_secret_name
+}
+
+output "key_vault_secret_id" {
+  description = "Dummy secret resource ID (vm-mi Key Vault Secrets User scope)."
+  value       = azapi_resource.kv_secret_seed.id
+}
+
+# --- RBAC (rbac.tf) ---
+
+output "vmmi_reader_assignment_id" {
+  description = "vm-mi Reader role assignment ID (resource group scope)."
+  value       = azurerm_role_assignment.vmmi_reader.id
+}
+
+output "vmmi_kv_secrets_user_assignment_id" {
+  description = "vm-mi Key Vault Secrets User role assignment ID (single secret scope)."
+  value       = azurerm_role_assignment.vmmi_kv_secrets_user.id
+}
+
+output "vmmi_storage_blob_reader_assignment_id" {
+  description = "vm-mi Storage Blob Data Reader role assignment ID (container scope)."
+  value       = azurerm_role_assignment.vmmi_storage_blob_reader.id
 }
