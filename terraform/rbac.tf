@@ -20,26 +20,37 @@
 # both scoped to the tightest resource available (single secret, single container)
 # rather than the whole vault/account, for consistent least-privilege scoping.
 
+# principal_type is set explicitly (rather than left to Terraform's automatic
+# Microsoft Graph lookup) because access-manager's ABAC condition checks
+# @Request[...:PrincipalType] directly against the submitted request. If Graph
+# resolution is slow or unavailable when the request is built, an unset
+# principal_type leaves that condition attribute empty and the assignment is
+# denied outright, with a generic AuthorizationFailed rather than the specific
+# "ABAC condition not fulfilled" message.
+
 resource "azurerm_role_assignment" "vmmi_reader" {
-  provider           = azurerm.rbac
-  scope              = data.azurerm_resource_group.this.id
-  role_definition_id = data.azurerm_role_definition.reader.role_definition_id
-  principal_id       = var.vm_mi_principal_id
-  description        = "Runtime: vm-mi reads resource group metadata (control-plane only)."
+  provider                         = azurerm.rbac
+  scope                            = data.azurerm_resource_group.this.id
+  role_definition_id               = data.azurerm_role_definition.reader.role_definition_id
+  principal_id                     = var.vm_mi_principal_id
+  principal_type                   = "ServicePrincipal"
+  description                      = "Runtime: vm-mi reads resource group metadata (control-plane only)."
 }
 
 resource "azurerm_role_assignment" "vmmi_kv_secrets_user" {
-  provider           = azurerm.rbac
-  scope              = azapi_resource.kv_secret_seed.id
-  role_definition_id = data.azurerm_role_definition.kv_secrets_user.role_definition_id
-  principal_id       = var.vm_mi_principal_id
-  description        = "Runtime: vm-mi reads the dummy secret value (data-plane, scoped to the single secret)."
+  provider                         = azurerm.rbac
+  scope                            = azapi_resource.kv_secret_seed.id
+  role_definition_id               = data.azurerm_role_definition.kv_secrets_user.role_definition_id
+  principal_id                     = var.vm_mi_principal_id
+  principal_type                   = "ServicePrincipal"
+  description                      = "Runtime: vm-mi reads the dummy secret value (data-plane, scoped to the single secret)."
 }
 
 resource "azurerm_role_assignment" "vmmi_storage_blob_reader" {
-  provider           = azurerm.rbac
-  scope              = azurerm_storage_container.data.id
-  role_definition_id = data.azurerm_role_definition.storage_blob_reader.role_definition_id
-  principal_id       = var.vm_mi_principal_id
-  description        = "Runtime: vm-mi reads blob content in the container (data-plane, least privilege)."
+  provider                         = azurerm.rbac
+  scope                            = azurerm_storage_container.data.id
+  role_definition_id               = data.azurerm_role_definition.storage_blob_reader.role_definition_id
+  principal_id                     = var.vm_mi_principal_id
+  principal_type                   = "ServicePrincipal"
+  description                      = "Runtime: vm-mi reads blob content in the container (data-plane, least privilege)."
 }

@@ -268,7 +268,10 @@ else
   KV_SECRET_ID="$(tf_output key_vault_secret_id)"
   STORAGE_CONTAINER_ID="$(tf_output storage_container_id)"
 
-  vmmi_assignments_json="$(az role assignment list --assignee "${VM_MI_PID}" -o json)"
+  # --all is necessary here,  without it, az role assignment list misses assignments
+  # scoped below the resource group (the KV secret and storage container
+  # scopes here), returning only the RG-level Reader assignment.
+  vmmi_assignments_json="$(az role assignment list --assignee "${VM_MI_PID}" --all -o json)"
 
   vmmi_role_scope_pairs="$(
     jq -r '.[] | "\(.roleDefinitionName)|\(.scope)"' <<<"${vmmi_assignments_json}" | sort
