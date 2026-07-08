@@ -1,4 +1,4 @@
-# --- Environment / provided infra (used by validation scripts) ---
+# --- Environment / provided infra ---
 
 output "location" {
   description = "Azure region (from provided resource group)."
