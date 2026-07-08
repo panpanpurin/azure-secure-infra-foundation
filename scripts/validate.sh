@@ -29,6 +29,39 @@ PEERING_B_TO_A="$(tf_output peering_b_to_a_name)"
 DNS_ZONE_BLOB="$(tf_output dns_zone_blob)"
 DNS_ZONE_VAULT="$(tf_output dns_zone_vault)"
 BOOTSTRAP_CIDR="$(tf_output bootstrap_subnet_cidr)"
+BOOTSTRAP_SUBNET_ID="$(tf_output bootstrap_subnet_id)"
+BOOTSTRAP_NSG="$(tf_output bootstrap_nsg_name)"
+VNET_A_ADDRESS_SPACE="$(tf_output vnet_a_address_space)"
+VM_NAME="$(tf_output vm_name)"
+
+log_section "Provided infrastructure (must remain intact — never destroyed or modified)"
+
+rg_state="$(
+  az group show --name "${RG}" --query properties.provisioningState -o tsv 2>/dev/null || true
+)"
+assert_eq "Provided resource group still exists" "Succeeded" "${rg_state}"
+
+vnet_a_prefix="$(
+  az network vnet show --ids "${VNET_A_ID}" --query "addressSpace.addressPrefixes[0]" -o tsv 2>/dev/null || true
+)"
+assert_eq "Provided VNet A still exists with its original address space" "${VNET_A_ADDRESS_SPACE}" "${vnet_a_prefix}"
+
+bootstrap_subnet_prefix="$(
+  az network vnet subnet show --ids "${BOOTSTRAP_SUBNET_ID}" --query addressPrefix -o tsv 2>/dev/null || true
+)"
+assert_eq "Provided snet-bootstrap still exists with its original CIDR" "${BOOTSTRAP_CIDR}" "${bootstrap_subnet_prefix}"
+
+bootstrap_nsg_found="$(
+  az network nsg show --resource-group "${RG}" --name "${BOOTSTRAP_NSG}" --query name -o tsv 2>/dev/null || true
+)"
+assert_eq "Provided bootstrap NSG (${BOOTSTRAP_NSG}) still exists and was never modified by this project" \
+  "${BOOTSTRAP_NSG}" "${bootstrap_nsg_found}"
+
+vm_power_state="$(
+  az vm get-instance-view --resource-group "${RG}" --name "${VM_NAME}" \
+    --query "instanceView.statuses[?starts_with(code, 'PowerState/')].displayStatus | [0]" -o tsv 2>/dev/null || true
+)"
+assert_eq "Provided bootstrap VM still exists and is running" "VM running" "${vm_power_state}"
 
 log_section "Peering (both directions must be Connected)"
 peering_a_state="$(

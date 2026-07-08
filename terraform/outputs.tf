@@ -35,6 +35,16 @@ output "bootstrap_subnet_cidr" {
   value       = var.bootstrap_subnet_cidr
 }
 
+output "bootstrap_nsg_name" {
+  description = "Provided NSG on snet-bootstrap (never modified, used to prove it's untouched)."
+  value       = data.azurerm_network_security_group.bootstrap.name
+}
+
+output "vnet_a_address_space" {
+  description = "Provided VNet A address space (used to prove it's unmodified)."
+  value       = data.azurerm_virtual_network.vnet_a.address_space[0]
+}
+
 output "vm_name" {
   description = "Provided bootstrap VM name."
   value       = var.vm_name

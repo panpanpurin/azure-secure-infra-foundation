@@ -18,12 +18,20 @@ flowchart LR
             end
         end
 
-        VM <-->|"bidirectional peering"| SNETS
-        SA["Storage account<br/>Standard/LRS · public OFF"]
-        KV["Key Vault<br/>Standard · RBAC · public OFF"]
+        VNETA <-->|"bidirectional peering"| VNETB
 
-        PEB --- SA
-        PEV --- KV
+        subgraph SAGROUP["Storage account"]
+            direction TB
+            CONTAINER["container: data"]
+        end
+
+        subgraph KVGROUP["Key Vault"]
+            direction TB
+            SECRET["secret: dummy-secret"]
+        end
+
+        PEB --- SAGROUP
+        PEV --- KVGROUP
 
         DNSB["privatelink.blob.core.windows.net<br/>(linked A + B)"]
         DNSV["privatelink.vaultcore.azure.net<br/>(linked A)"]
@@ -35,6 +43,6 @@ flowchart LR
         RGSCOPE["Resource group<br/>Reader scope"]
 
         VM -->|"Reader"| RGSCOPE
-        VM -->|"Key Vault Secrets User"| KV
-        VM -->|"Storage Blob Data Reader"| SA
+        VM -->|"Key Vault Secrets User"| SECRET
+        VM -->|"Storage Blob Data Reader"| CONTAINER
     end

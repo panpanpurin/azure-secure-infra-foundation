@@ -72,18 +72,11 @@ resource "random_password" "dummy_secret" {
 }
 
 # Written by id-manager via the ARM control plane (azapi).
-
-# The azapi provider schema validation rejects the read-only `location` field
-# returned by Azure for Microsoft.KeyVault/vaults/secrets resources.
-# Schema validation is disabled and location is set explicitly to match the
-# parent Key Vault, preventing unnecessary plan diffs and resource replacement.
 resource "azapi_resource" "kv_secret_seed" {
   type      = "Microsoft.KeyVault/vaults/secrets@2023-07-01"
   name      = local.dummy_secret_name
   parent_id = azurerm_key_vault.app.id
-  location  = local.location
   tags      = local.tags
-  schema_validation_enabled = false
 
   body = {
     properties = {
