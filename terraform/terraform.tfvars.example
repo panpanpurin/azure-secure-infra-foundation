@@ -27,8 +27,7 @@ storage_subnet_address_prefixes = ["10.20.1.0/24"]
 bootstrap_subnet_cidr           = "10.10.0.0/24"
 
 # --- Naming / provisioning options ---
-name_prefix         = "aiic"
-storage_use_azuread = false
+name_prefix = "aiic"
 
 # --- Mandatory tags (Azure Policy) ---
 tag_owner       = "<your-name>"

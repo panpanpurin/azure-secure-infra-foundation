@@ -45,7 +45,7 @@ resource "azurerm_network_security_rule" "storage_deny_all_inbound" {
 
 resource "azurerm_network_security_rule" "storage_allow_out_vnet" {
   name                        = "Allow-Out-VNet"
-  priority                    = 110
+  priority                    = 100
   direction                   = "Outbound"
   access                      = "Allow"
   protocol                    = "*"

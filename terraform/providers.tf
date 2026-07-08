@@ -2,7 +2,10 @@
 provider "azurerm" {
   features {
     key_vault {
-      purge_soft_delete_on_destroy    = true
+    # purge_soft_delete_on_destroy is not used because purging requires
+    # subscription-level permission, which id-manager does not have.
+    # A random suffix is added to the vault name on every apply, avoiding
+    # name collisions with previously soft-deleted vaults.
       recover_soft_deleted_key_vaults = true
     }
   }
@@ -12,7 +15,6 @@ provider "azurerm" {
   subscription_id                 = var.subscription_id
   tenant_id                       = var.tenant_id
   resource_provider_registrations = "none"
-  storage_use_azuread             = var.storage_use_azuread
 }
 
 # Aliased provider: access-manager (RBAC assignments only)

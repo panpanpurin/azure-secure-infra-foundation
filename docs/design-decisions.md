@@ -66,9 +66,9 @@ The dummy secret is instead created with `azapi_resource`, authenticated as `id-
 | Key Vault secret | `azapi_resource` (ARM control-plane write) | None — covered by existing `Contributor` |
 | Storage blob | Account key over blob private endpoint | None — `shared_access_key_enabled = true` |
 
-**Hardening path (optional)**
+**Why there is no Entra-ID-only variant for the blob seed**
 
-Disable shared keys, seed the blob via Entra ID, and add `Storage Blob Data Contributor` for `id-manager`. This adds an RBAC propagation dependency and longer apply times, and only applies to the storage seed, the Key Vault seed path has no equivalent hardening variant, since it never depends on RBAC propagation in the first place.
+Disabling shared keys and seeding the blob via Entra ID would require granting `id-manager` `Storage Blob Data Contributor`. That role is outside the three-role allow-list enforced by `access-manager`'s ABAC condition above (`Reader`, `Key Vault Secrets User`, `Storage Blob Data Reader`), the identical restriction that ruled out `Key Vault Secrets Officer` for the secret seed. Unlike the Key Vault secret, blob content has no ARM control-plane write to substitute for the missing role: `azapi_resource` works for the secret because `Microsoft.KeyVault/vaults/secrets` is an ARM-modeled resource, blob bytes are a pure data-plane write with no ARM proxy resource. The account-key seed is therefore the only working path for the blob in this environment, not an optional hardening trade-off.
 
 `vm-mi` always reads the blob with `Storage Blob Data Reader` (Entra ID) regardless of how the blob was uploaded, and the secret with `Key Vault Secrets User` regardless of how it was seeded.
 

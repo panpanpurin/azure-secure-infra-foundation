@@ -45,11 +45,3 @@ data "azurerm_role_definition" "kv_secrets_user" {
 data "azurerm_role_definition" "storage_blob_reader" {
   name = local.role_storage_blob_reader
 }
-
-data "azurerm_role_definition" "kv_secrets_officer" {
-  name = local.role_kv_secrets_officer
-}
-
-data "azurerm_role_definition" "storage_blob_contributor" {
-  name = local.role_storage_blob_contributor
-}

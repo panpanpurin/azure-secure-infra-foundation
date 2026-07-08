@@ -21,9 +21,7 @@ locals {
   dns_zone_vault = "privatelink.vaultcore.azure.net"
 
   # Runtime RBAC role names (resolved via id-manager; assigned via access-manager)
-  role_reader                   = "Reader"
-  role_kv_secrets_user          = "Key Vault Secrets User"
-  role_storage_blob_reader      = "Storage Blob Data Reader"
-  role_kv_secrets_officer       = "Key Vault Secrets Officer"
-  role_storage_blob_contributor = "Storage Blob Data Contributor"
+  role_reader              = "Reader"
+  role_kv_secrets_user     = "Key Vault Secrets User"
+  role_storage_blob_reader = "Storage Blob Data Reader"
 }

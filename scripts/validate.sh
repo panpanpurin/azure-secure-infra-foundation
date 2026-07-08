@@ -257,14 +257,107 @@ else
     assert_eq "Dummy secret exists and is enabled (ARM control-plane read)" "true" "${kv_secret_enabled}"
   fi
 
-  log_skip "Dummy secret data-plane value read deferred to RBAC phase (needs vm-mi's Key Vault Secrets User grant)"
 fi
 
-log_section "RBAC and data-plane (not deployed yet)"
-if skip_if_missing_output "vm_mi_required_roles" "RBAC outputs missing — implement rbac.tf and apply"; then
+log_section "RBAC (vm-mi holds exactly the three required assignments)"
+if skip_if_missing_output "vmmi_reader_assignment_id" "RBAC outputs missing — implement rbac.tf and apply"; then
   :
 else
-  log_skip "RBAC and positive/negative data-plane checks not implemented in this phase"
+  VM_MI_PID="$(tf_output vm_mi_principal_id)"
+  RG_ID="$(tf_output resource_group_id)"
+  KV_SECRET_ID="$(tf_output key_vault_secret_id)"
+  STORAGE_CONTAINER_ID="$(tf_output storage_container_id)"
+
+  # --all is necessary here: without it, az role assignment list misses assignments
+  # scoped below the resource group (the KV secret and storage container
+  # scopes here), returning only the RG-level Reader assignment.
+  # --assignee-object-id (instead of --assignee) skips az's Graph API lookup
+  # entirely: VM_MI_PID is already an object ID, so there's nothing to resolve,
+  # and Graph resolution is unavailable for both provisioning identities.
+  # AZURE_DEFAULTS_GROUP is cleared for this call: az CLI rejects --all when
+  # combined with a --resource-group/--scope, including one injected implicitly
+  # from an `az configure --defaults group=...` setting.
+  vmmi_assignments_json="$(AZURE_DEFAULTS_GROUP= az role assignment list --assignee-object-id "${VM_MI_PID}" --all -o json)"
+
+  vmmi_role_scope_pairs="$(
+    jq -r '.[] | "\(.roleDefinitionName)|\(.scope)"' <<<"${vmmi_assignments_json}" | sort
+  )"
+  expected_role_scope_pairs="$(
+    printf '%s\n%s\n%s' \
+      "Reader|${RG_ID}" \
+      "Key Vault Secrets User|${KV_SECRET_ID}" \
+      "Storage Blob Data Reader|${STORAGE_CONTAINER_ID}" | sort
+  )"
+  assert_eq "vm-mi holds exactly the three required role assignments (no extras)" \
+    "${expected_role_scope_pairs}" "${vmmi_role_scope_pairs}"
+
+  vmmi_forbidden_roles="$(
+    jq -r '.[].roleDefinitionName' <<<"${vmmi_assignments_json}" \
+      | grep -Ei '^(Contributor|Owner|User Access Administrator|Role Based Access Control Administrator)$' || true
+  )"
+  assert_eq "No forbidden roles (Contributor/Owner/UAA/RBAC Admin) are assigned to vm-mi" "" "${vmmi_forbidden_roles}"
+fi
+
+log_section "Data-plane (vm-mi positive read / negative write, via IMDS token)"
+if skip_if_missing_output "vmmi_reader_assignment_id" "RBAC outputs missing — implement rbac.tf and apply"; then
+  :
+else
+  KEY_VAULT_URI="$(tf_output key_vault_uri)"
+  KV_SECRET_NAME="$(tf_output key_vault_secret_name)"
+  STORAGE_BLOB_HOST="$(tf_output storage_blob_host)"
+  STORAGE_CONTAINER_NAME="$(tf_output storage_container_name)"
+  STORAGE_BLOB_NAME="$(tf_output storage_blob_name)"
+
+  vmmi_kv_token="$(
+    curl -s --max-time 5 -H "Metadata:true" \
+      "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net" \
+      | jq -r '.access_token // empty'
+  )"
+  vmmi_storage_token="$(
+    curl -s --max-time 5 -H "Metadata:true" \
+      "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com%2F" \
+      | jq -r '.access_token // empty'
+  )"
+
+  if [[ -z "${vmmi_kv_token}" || -z "${vmmi_storage_token}" ]]; then
+    log_fail "Acquired vm-mi IMDS tokens for Key Vault and Storage (must run on the bootstrap VM as vm-mi's system identity)"
+  else
+    log_pass "Acquired vm-mi IMDS tokens for Key Vault and Storage"
+
+    kv_read_status="$(
+      curl -s -o /dev/null -w '%{http_code}' \
+        -H "Authorization: Bearer ${vmmi_kv_token}" \
+        "${KEY_VAULT_URI%/}/secrets/${KV_SECRET_NAME}?api-version=7.4"
+    )"
+    assert_eq "vm-mi can read the dummy secret value (positive)" "200" "${kv_read_status}"
+
+    kv_write_status="$(
+      curl -s -o /dev/null -w '%{http_code}' -X PUT \
+        -H "Authorization: Bearer ${vmmi_kv_token}" \
+        -H "Content-Type: application/json" \
+        -d '{"value":"should-not-be-writable"}' \
+        "${KEY_VAULT_URI%/}/secrets/vmmi-negative-test?api-version=7.4"
+    )"
+    assert_eq "vm-mi cannot write a secret (negative, least-privilege proof)" "403" "${kv_write_status}"
+
+    blob_read_status="$(
+      curl -s -o /dev/null -w '%{http_code}' \
+        -H "Authorization: Bearer ${vmmi_storage_token}" \
+        -H "x-ms-version: 2021-08-06" \
+        "https://${STORAGE_BLOB_HOST}/${STORAGE_CONTAINER_NAME}/${STORAGE_BLOB_NAME}"
+    )"
+    assert_eq "vm-mi can read the dummy blob content (positive)" "200" "${blob_read_status}"
+
+    blob_write_status="$(
+      curl -s -o /dev/null -w '%{http_code}' -X PUT \
+        -H "Authorization: Bearer ${vmmi_storage_token}" \
+        -H "x-ms-version: 2021-08-06" \
+        -H "x-ms-blob-type: BlockBlob" \
+        -H "Content-Length: 0" \
+        "https://${STORAGE_BLOB_HOST}/${STORAGE_CONTAINER_NAME}/vmmi-negative-test.txt"
+    )"
+    assert_eq "vm-mi cannot write a blob (negative, least-privilege proof)" "403" "${blob_write_status}"
+  fi
 fi
 
 print_summary
