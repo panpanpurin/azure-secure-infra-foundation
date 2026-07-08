@@ -8,7 +8,7 @@ terraform {
     }
     azapi = {
       source  = "azure/azapi"
-      version = "~> 1.13"
+      version = "~> 2.4"
     }
     random = {
       source  = "hashicorp/random"
