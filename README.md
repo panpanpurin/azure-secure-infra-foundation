@@ -22,12 +22,20 @@ flowchart LR
             end
         end
 
-        VM <-->|"bidirectional peering"| SNETS
-        SA["Storage account<br/>Standard/LRS · public OFF"]
-        KV["Key Vault<br/>Standard · RBAC · public OFF"]
+        VNETA <-->|"bidirectional peering"| VNETB
 
-        PEB --- SA
-        PEV --- KV
+        subgraph SAGROUP["Storage account"]
+            direction TB
+            CONTAINER["container: data"]
+        end
+
+        subgraph KVGROUP["Key Vault"]
+            direction TB
+            SECRET["secret: dummy-secret"]
+        end
+
+        PEB --- SAGROUP
+        PEV --- KVGROUP
 
         DNSB["privatelink.blob.core.windows.net<br/>(linked A + B)"]
         DNSV["privatelink.vaultcore.azure.net<br/>(linked A)"]
@@ -39,8 +47,8 @@ flowchart LR
         RGSCOPE["Resource group<br/>Reader scope"]
 
         VM -->|"Reader"| RGSCOPE
-        VM -->|"Key Vault Secrets User"| KV
-        VM -->|"Storage Blob Data Reader"| SA
+        VM -->|"Key Vault Secrets User"| SECRET
+        VM -->|"Storage Blob Data Reader"| CONTAINER
     end
 ```
 
@@ -67,7 +75,6 @@ git clone <repository-url>
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 
 make init
-make validate
 make plan
 make apply
 ```
@@ -104,6 +111,8 @@ The validation script checks:
 5. `vm-mi` holds exactly three role assignments (no extras, no forbidden roles)
 6. `vm-mi` can read the dummy secret and blob (positive test)
 7. `vm-mi` cannot write a secret or blob (negative test — least-privilege proof)
+
+**Note:** if `make test` is run immediately after `make apply`, the storage blob positive-read check can fail with `403` even though the role assignment was created successfully, Azure RBAC propagation to the storage data plane can lag by up to a couple of minutes (the Key Vault side is usually faster). Wait a bit and re-run `make test` please.
 
 ## Destroy
 

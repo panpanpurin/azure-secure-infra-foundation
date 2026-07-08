@@ -2,10 +2,11 @@
 provider "azurerm" {
   features {
     key_vault {
-    # purge_soft_delete_on_destroy is not used because purging requires
-    # subscription-level permission, which id-manager does not have.
-    # A random suffix is added to the vault name on every apply, avoiding
-    # name collisions with previously soft-deleted vaults.
+      # Explicitly false. This flag defaults to true in the
+      # azurerm provider. Purging needs a subscription-scoped permission
+      # id-manager doesn't have. Not needed anyway: the vault name gets a
+      # fresh random suffix each apply, so a soft-deleted one never collides.
+      purge_soft_delete_on_destroy    = false
       recover_soft_deleted_key_vaults = true
     }
   }

@@ -16,7 +16,7 @@
 | :--- | :--- | :--- | :--- |
 | Resource group | **Reader** | Contributor *(pre-granted)* | Role Based Access Control Administrator *(pre-granted; confirmed via `az role assignment list`)* |
 | Key Vault secret | **Key Vault Secrets User** *(scoped to the single dummy secret)* | None — secret seeded via `azapi_resource` (ARM control-plane) | Creates role assignments |
-| Storage container | **Storage Blob Data Reader** | Account-key blob seed *(default)* or Blob Data Contributor *(AAD-only path)* | Creates role assignments |
+| Storage container | **Storage Blob Data Reader** | Account-key blob seed *(only working path)* | Creates role assignments |
 
 All `azurerm_role_assignment` resources use `provider = azurerm.rbac` (`access-manager`).
 
@@ -67,15 +67,14 @@ A further, unused option is scoping Storage Blob Data Reader to the individual b
 
 ## Provisioning seed roles (`id-manager`)
 
-Created via `access-manager` for initial dummy content only — not runtime grants.
+`id-manager` receives **no additional role assignment** for either seed, neither goes through `access-manager`'s ABAC-restricted role-assignment path at all:
 
-| Role | GUID | Scope | When used |
-| :--- | :--- | :--- | :--- |
-| Storage Blob Data Contributor | `ba92f5b4-2d11-453d-a403-e96b0029c9fe` | Container | AAD-only storage seed path only |
+| Artifact | Seed method | `id-manager` grant |
+| :--- | :--- | :--- |
+| Key Vault secret | `azapi_resource` (ARM control-plane write to `Microsoft.KeyVault/vaults/secrets`) | None — covered by existing `Contributor` |
+| Storage blob | Account key over the blob private endpoint | None — `shared_access_key_enabled = true` |
 
-On the **default path**, blob upload uses the storage account key over the private endpoint; the Blob Data Contributor assignment is omitted.
-
-The Key Vault seed has no equivalent row here: `id-manager` receives no role assignment at all for the vault. The dummy secret is created via `azapi_resource` (ARM control-plane write to `Microsoft.KeyVault/vaults/secrets`), authorized by `id-manager`'s existing `Contributor` grant, please see [design-decisions.md](design-decisions.md#provisioning-seed-vs-runtime-roles) for why a role assignment isn't an option here.
+An Entra-ID-only blob seed (disabling shared keys, granting `id-manager` `Storage Blob Data Contributor`) is **not offered, not merely unused by default**: that role sits outside the three-role allow-list enforced by `access-manager`'s ABAC condition above, the identical restriction that ruled out `Key Vault Secrets Officer` for the secret seed. Unlike the Key Vault secret, blob content has no ARM control-plane write to fall back on, `azapi_resource` works for the secret because `Microsoft.KeyVault/vaults/secrets` is an ARM-modeled resource, blob bytes are a pure data-plane write with no ARM proxy resource, so the account-key seed is the only working path here. See [design-decisions.md](design-decisions.md#provisioning-seed-vs-runtime-roles) for the full reasoning please.
 
 ## Role definition resolution pattern
 
@@ -88,6 +87,7 @@ The Key Vault seed has no equivalent row here: `id-manager` receives no role ass
 
 `scripts/validate.sh` asserts:
 
+- The provided resource group, VNet A, `snet-bootstrap`, its NSG, and the bootstrap VM are all still intact (never destroyed or modified by this deployment)
 - `vm-mi` holds exactly the three runtime roles above (no extras)
 - Forbidden roles are absent
 - `vm-mi` can read secret and blob (positive)
