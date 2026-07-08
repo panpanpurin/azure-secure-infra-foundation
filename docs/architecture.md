@@ -66,7 +66,7 @@ Role definitions are resolved with the default provider; assignments are written
 
 ## Validation
 
-Active checks live in `scripts/validate.sh` (invoked via `make test`). The `tests/` directory is reserved for future automated suites (e.g. Terratest).
+Active checks live in `scripts/validate.sh` (invoked via `make test`), including a first pass that proves the provided environment (resource group, VNet A, `snet-bootstrap`, its NSG, the bootstrap VM) was never destroyed or modified.
 
 ## Diagram
 

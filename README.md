@@ -92,18 +92,18 @@ make test    # runs scripts/validate.sh
 
 | Path | Purpose |
 | :--- | :--- |
-| `scripts/validate.sh` | Main validation — peering, DNS, public-access flags, RBAC, positive/negative data-plane checks |
+| `scripts/validate.sh` | Main validation -> provided-infra integrity, peering, DNS, public-access flags, RBAC, positive/negative data-plane checks |
 | `scripts/helpers.sh` | Shared functions (`log`, `require_cmd`, etc.) |
-| `tests/` | Reserved for future automated tests (e.g. Terratest); currently empty |
 
 The validation script checks:
 
-1. VNet peering `Connected` in both directions
-2. Storage and Key Vault FQDNs resolve to private `10.x` addresses from the VM
-3. Storage public network access and anonymous blob access are disabled
-4. `vm-mi` holds exactly three role assignments (no extras, no forbidden roles)
-5. `vm-mi` can read the dummy secret and blob (positive test)
-6. `vm-mi` cannot write a secret or blob (negative test — least-privilege proof)
+1. The provided resource group, VNet A, `snet-bootstrap`, its NSG, and the bootstrap VM are all still intact (never destroyed or modified)
+2. VNet peering `Connected` in both directions
+3. Storage and Key Vault FQDNs resolve to private `10.x` addresses from the VM
+4. Storage public network access and anonymous blob access are disabled
+5. `vm-mi` holds exactly three role assignments (no extras, no forbidden roles)
+6. `vm-mi` can read the dummy secret and blob (positive test)
+7. `vm-mi` cannot write a secret or blob (negative test — least-privilege proof)
 
 ## Destroy
 
@@ -225,7 +225,6 @@ Both data-plane roles are scoped to the tightest resource available (single secr
 ```
 ├── terraform/          # Root module (network, dns, storage, keyvault, rbac)
 ├── scripts/            # Active validation (validate.sh, helpers.sh)
-├── tests/              # Placeholder for future test suites (Terratest, etc.)
 ├── docs/               # Extended architecture and design notes
 ├── diagrams/           # Mermaid source
 ├── Makefile            # init, plan, apply, test, destroy
