@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# Infrastructure validation — phased checks aligned with deployment progress.
-#
-# Phase 1 (current): network (VNet B, NSG, peering) + private DNS zones/links.
-# Phase 2 (later):   storage account/PE, Key Vault/PE, RBAC, data-plane tests.
+# Infrastructure validation 
 
 set -euo pipefail
 

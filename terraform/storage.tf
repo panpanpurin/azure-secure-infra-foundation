@@ -77,7 +77,6 @@ resource "azurerm_storage_container" "data" {
   depends_on = [azurerm_private_endpoint.storage_blob]
 }
 
-# Uploads via account key over the PE (shared_access_key_enabled = true above).
 resource "azurerm_storage_blob" "dummy" {
   name                 = local.storage_blob_name
   storage_container_id = azurerm_storage_container.data.id
