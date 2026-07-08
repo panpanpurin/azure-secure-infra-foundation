@@ -20,6 +20,12 @@ apply: init ## Run terraform apply
 	cd $(TF_DIR) && terraform apply
 
 destroy: init ## Tear down candidate-managed resources
+	@# Microsoft.KeyVault/vaults/secrets has no ARM control-plane DELETE (405
+	@# DeleteNotSupported), only the vault's data-plane API supports it. This
+	@# resource must be dropped from state before every destroy; the Key Vault
+	@# itself is destroyed right after in the same run and takes the secret
+	@# with it, so nothing is left orphaned. Safe to skip if not in state.
+	@cd $(TF_DIR) && (terraform state list 2>/dev/null | grep -qx 'azapi_resource.kv_secret_seed' && terraform state rm azapi_resource.kv_secret_seed || true)
 	cd $(TF_DIR) && terraform destroy
 
 validate: init ## Run terraform validate
